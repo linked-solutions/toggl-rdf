@@ -33,7 +33,9 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.Feature;
 import org.apache.clerezza.commons.rdf.Graph;
+import org.apache.clerezza.commons.rdf.impl.utils.simple.SimpleGraph;
 import org.apache.clerezza.rdf.core.serializedform.Serializer;
+import org.apache.clerezza.rdf.core.serializedform.UnsupportedFormatException;
 import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.logging.LoggingFeature;
 
@@ -44,59 +46,99 @@ import org.glassfish.jersey.logging.LoggingFeature;
 public class Toggl2RDF {
 
     final static DateTimeFormatter formatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+    
+    final String authHeaderValue;
+    final WebTarget webTarget;
 
-    public static void main(String... args) {
-        String togglApiToken = args[0];
-        Logger logger = Logger.getLogger("FLOW");
-        Feature feature = new LoggingFeature(logger, Level.INFO, null, null);
-        Client client = ClientBuilder.newClient(new ClientConfig().register(feature));
-        WebTarget webTarget = client.target("https://www.toggl.com/api/v8");
-        WebTarget timeEntries = webTarget.path("time_entries");
+    public Toggl2RDF(final String togglApiToken) {
+        authHeaderValue = authHeaderValue(togglApiToken, "api_token");
+        final Logger logger = Logger.getLogger("FLOW");
+        final Feature feature = new LoggingFeature(logger, Level.INFO, null, null);
+        final Client client = ClientBuilder.newClient(new ClientConfig().register(feature));
+        webTarget = client.target("https://www.toggl.com/api/v8");
+    }
+
+    /*private Graph getProjects() {
+        final WebTarget projects = webTarget.path("projects");
+        projects.register(new JarqlMBR("CONSTRUCT WHERE {?s ?p ?o}"));
+        return invoke(projects);
+    }*/
+
+    private Graph getWorkspacesAndProjects() {
+        final WebTarget projects = webTarget.path("workspaces");
+        projects.register(new JarqlMBR(""
+                + "PREFIX toggl: <http://vocab.linked.solutions/toggl#>"
+                + "PREFIX jarql: <http://jarql.com/>"
+                + "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>"
+                + "PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>"
+                + "CONSTRUCT {"
+                + "?workSpace a toggl:WorkSpace;"
+                + "rdfs:label ?name."
+                + "} WHERE {"
+                + "?s a jarql:Root ;"
+                + "jarql:name ?name ;"
+                + "jarql:id ?id ."
+                + "BIND(IRI(CONCAT(\" https://www.toggl.com/api/v8/workspaces/\", ?id)) AS ?workSpace)"
+                + "}"));
+        return invoke(projects);
+    }
+    
+    private Graph getTimeEntries(final ZonedDateTime start, final ZonedDateTime end) throws UnsupportedFormatException {
+        
+        final WebTarget timeEntries = webTarget.path("time_entries");
         timeEntries.register(new JarqlMBR(""
                 + "PREFIX toggl: <http://vocab.linked.solutions/toggl#>"
                 + "PREFIX jarql: <http://jarql.com/>"
                 + "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>"
+                + "PREFIX dct <http://purl.org/dc/terms/>"
                 + "CONSTRUCT {"
-                    + "?timeEntry a toggl:TimeEntry ;"
-                    + "toggl:workSpace ?workspace ;"
-                    + "toggl:user ?user ;"
-                    + "toggl:project ?project ;"
-                    + "toggl:start ?startTime ;"
-                    + "toggl:stop ?stopTime ;"
-                    + "toggl:description ?description ."
+                + "?timeEntry a toggl:TimeEntry ;"
+                + "toggl:workSpace ?workSpace ;"
+                + "toggl:user ?user ;"
+                + "toggl:project ?project ;"
+                + "toggl:start ?startTime ;"
+                + "toggl:stop ?stopTime ;"
+                + "dct:description ?description ."
                 + "} WHERE {"
-                    + "?s a jarql:Root ."
-                    + "?s jarql:id ?id ."
-                    + "?s jarql:wid ?wid ."
-                    + "?s jarql:uid ?uid ."
-                    + "?s jarql:pid ?pid ."
-                    + "?s jarql:start ?start ."
-                    + "?s jarql:stop ?stop ."
-                    + "OPTIONAL {?s jarql:description ?description} ."
-                    + "BIND(IRI(CONCAT(\"https://toggl.com/api/v8/time_entries/\",?id)) as ?timeEntry)"
-                    + "BIND(IRI(CONCAT(\"https://toggl.com/api/v8/workspaces/\",?wid)) as ?workspace)"
-                    + "BIND(IRI(CONCAT(\"https://toggl.com/api/v8/users/\",?uid)) as ?user)"
-                    + "BIND(IRI(CONCAT(\"https://toggl.com/api/v8/projects/\",?pid)) as ?project)"
-                    + "BIND(xsd:dateTime(?start) AS ?startTime)"
-                    + "BIND(xsd:dateTime(?stop) AS ?stopTime)"
+                + "?s a jarql:Root ."
+                + "?s jarql:id ?id ."
+                + "?s jarql:wid ?wid ."
+                + "?s jarql:uid ?uid ."
+                + "?s jarql:pid ?pid ."
+                + "?s jarql:start ?start ."
+                + "?s jarql:stop ?stop ."
+                + "OPTIONAL {?s jarql:description ?description} ."
+                + "BIND(IRI(CONCAT(\"https://toggl.com/api/v8/time_entries/\",?id)) AS ?timeEntry)"
+                + "BIND(IRI(CONCAT(\"https://toggl.com/api/v8/workspaces/\",?wid)) AS ?workSpace)"
+                + "BIND(IRI(CONCAT(\"https://toggl.com/api/v8/users/\",?uid)) AS ?user)"
+                + "BIND(IRI(CONCAT(\"https://toggl.com/api/v8/projects/\",?pid)) AS ?project)"
+                + "BIND(xsd:dateTime(?start) AS ?startTime)"
+                + "BIND(xsd:dateTime(?stop) AS ?stopTime)"
                 + "}"));
-        ZonedDateTime end = ZonedDateTime.now();
-        ZonedDateTime start = end.minusDays(1);
-        WebTarget lastDay = timeEntries
+        final WebTarget timeEntriesInTimeRange = timeEntries
                 .queryParam("start_date", formatter.format(start))
                 .queryParam("end_date", formatter.format(end));
-        Invocation.Builder invocationBuilder = lastDay.request();
-        Graph response = invocationBuilder.header("Authorization",
-                authHeaderValue(togglApiToken, "api_token")).get(Graph.class);
-        //System.out.println(response.getStatusInfo());
-        //System.out.println(response.getEntity());
-        //System.out.println(response);
-        Serializer.getInstance().serialize(System.out, response, "text/turtle");
+        return invoke(timeEntriesInTimeRange);
     }
 
+    private Graph invoke(WebTarget target) {
+        final Invocation.Builder invocationBuilder = target.request();
+        return invocationBuilder.header("Authorization", authHeaderValue).get(Graph.class);
+    }
+    
     private static String authHeaderValue(String userName, String password) {
-        String usernameAndPassword = userName + ":" + password;
-        String authorizationHeaderName = "Authorization";
+        final String usernameAndPassword = userName + ":" + password;
+        final String authorizationHeaderName = "Authorization";
         return "Basic " + java.util.Base64.getEncoder().encodeToString(usernameAndPassword.getBytes());
+    }
+    
+    public static void main(final String... args) {
+        final Toggl2RDF toggl2RDF = new Toggl2RDF(args[0]);
+        final ZonedDateTime end = ZonedDateTime.now();
+        final ZonedDateTime start = end.minusDays(1);
+        final Graph graph = new SimpleGraph();
+        //graph.addAll(toggl2RDF.getTimeEntries(start, end));
+        graph.addAll(toggl2RDF.getWorkspacesAndProjects());
+        Serializer.getInstance().serialize(System.out, graph, "text/turtle");
     }
 }
