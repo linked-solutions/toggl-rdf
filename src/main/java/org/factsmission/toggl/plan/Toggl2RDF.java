@@ -1,81 +1,94 @@
+/*
+ * The MIT License
+ *
+ * Copyright 2017 Reto Gmür.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
 package org.factsmission.toggl.plan;
 
-import ch.simas.jtoggl.Client;
-import ch.simas.jtoggl.JToggl;
-import ch.simas.jtoggl.Project;
-import ch.simas.jtoggl.TimeEntry;
-import ch.simas.jtoggl.User;
-import ch.simas.jtoggl.Workspace;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Invocation;
+import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.Feature;
 import org.apache.clerezza.commons.rdf.Graph;
-import org.apache.clerezza.commons.rdf.IRI;
-import org.apache.clerezza.commons.rdf.RDFTerm;
-import org.apache.clerezza.commons.rdf.impl.utils.PlainLiteralImpl;
-import org.apache.clerezza.commons.rdf.impl.utils.TripleImpl;
-import org.apache.clerezza.commons.rdf.impl.utils.simple.SimpleGraph;
-import org.apache.clerezza.rdf.ontologies.RDF;
+import org.apache.clerezza.rdf.core.serializedform.Serializer;
+import org.glassfish.jersey.client.ClientConfig;
+import org.glassfish.jersey.logging.LoggingFeature;
 
 /**
  *
- * @author user
+ * @author reto
  */
 public class Toggl2RDF {
-  
-  public static final String iriPrefix ="http://toggl.wymiwyg.com/";
-  
-  public static IRI prefix(String suffix) {
-    return new IRI(iriPrefix+suffix);
-  } 
-  
-  final JToggl jToggl;
-  
-  public Toggl2RDF(String togglApiToken) {
-    jToggl = new JToggl(togglApiToken, "api_token");
-    jToggl.setThrottlePeriod(500l);
-    //jToggl.switchLoggingOn();
 
-    /*List<Workspace> workspaces = jToggl.getWorkspaces();
-    for (int i = 0; i < workspaces.size(); i++) {
-      Workspace workspace = workspaces.get(i);
-      System.out.println("Workspace: "+workspace);
-    }
-    List<Project> projects = jToggl.getProjects();
-    for (int i = 0; i < projects.size(); i++) {
-      Project project = projects.get(i);
-      System.out.println("Project: "+project.getName()+"("+project.getId()+") in "+project.getWorkspace());   
-    }*/
-    CachingTogglClient cachingClient = new CachingTogglClient(togglApiToken);
-    List<TimeEntry>  timeEntries = cachingClient.getTimeEntries(new Date(System.currentTimeMillis()-24*60*60*1000), new Date());
-    for (int i = 0; i < timeEntries.size(); i++) {
-      TimeEntry timeEntry = timeEntries.get(i);
-      System.out.println("TimeEntry: "+timeEntry.getDescription()+" in "+timeEntry.getProject().getName()+" "+timeEntry);   
-    }
-    List<User> users = jToggl.getUsers();
-    for (int i = 0; i < users.size(); i++) {
-      User user = users.get(i);
-      System.out.println("User: "+user.getFullname());
-    }
-  }
-  
-  public void copyToGraph(Graph g, Date startDate, Date endDate) {
-    List<Workspace> workspaces = jToggl.getWorkspaces();
-    for (int i = 0; i < workspaces.size(); i++) {
-      Workspace workspace = workspaces.get(i);
-      IRI workspaceNode = new IRI(iriPrefix+"workspace/"+workspace.getId());
-      g.add(new TripleImpl(workspaceNode, RDF.type, prefix("Workspace")));
-      g.add(new TripleImpl(workspaceNode, prefix("name"), new PlainLiteralImpl(workspace.getName())));
-      g.add(new TripleImpl(workspaceNode, prefix("json"), new PlainLiteralImpl(workspace.toJSONString())));
-    }
-  }
+    final static DateTimeFormatter formatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
-  public static void main(String... args) {
-    String togglApiToken = args[0];
-    Toggl2RDF toggl2RDF = new Toggl2RDF(togglApiToken);
-    Graph g = new SimpleGraph();
-    toggl2RDF.copyToGraph(g, new Date(System.currentTimeMillis()-24*60*60*1000), new Date());
-    System.out.println(g);
-  }
+    public static void main(String... args) {
+        String togglApiToken = args[0];
+        Logger logger = Logger.getLogger("FLOW");
+        Feature feature = new LoggingFeature(logger, Level.INFO, null, null);
+        Client client = ClientBuilder.newClient(new ClientConfig().register(feature));
+        WebTarget webTarget = client.target("https://www.toggl.com/api/v8");
+        WebTarget timeEntries = webTarget.path("time_entries");
+        timeEntries.register(new JarqlMBR(""
+                + "PREFIX toggl: <http://vocab.linked.solutions/toggl#>"
+                + "PREFIX jarql: <http://jarql.com/>"
+                + "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>"
+                + "CONSTRUCT {"
+                    + "?s a toggl:TimeEntry ."
+                    + "?s toggl:workSpace ?workspace ."
+                    + "?s toggl:user ?user ."
+                    + "?s toggl:start ?startTime ."
+                    + "?s ?p ?o"
+                + "} WHERE {"
+                    + "?s a jarql:Root ."
+                    + "?s jarql:wid ?wid ."
+                    + "?s jarql:uid ?uid ."
+                    + "?s jarql:start ?start ."
+                    + "?s ?p ?o ."
+                    + "BIND(IRI(CONCAT(\"https://toggl.com/app/workspaces/\",?wid)) as ?workspace)"
+                    + "BIND(IRI(CONCAT(\"https://toggl.com/app/users/\",?uid)) as ?user)"
+                    + "BIND(xsd:dateTime(?start) AS ?startTime)"
+                + "}"));
+        ZonedDateTime end = ZonedDateTime.now();
+        ZonedDateTime start = end.minusDays(1);
+        WebTarget lastDay = timeEntries
+                .queryParam("start_date", formatter.format(start))
+                .queryParam("end_date", formatter.format(end));
+        Invocation.Builder invocationBuilder = lastDay.request();
+        Graph response = invocationBuilder.header("Authorization",
+                authHeaderValue(togglApiToken, "api_token")).get(Graph.class);
+        //System.out.println(response.getStatusInfo());
+        //System.out.println(response.getEntity());
+        //System.out.println(response);
+        Serializer.getInstance().serialize(System.out, response, "text/turtle");
+    }
+
+    private static String authHeaderValue(String userName, String password) {
+        String usernameAndPassword = userName + ":" + password;
+        String authorizationHeaderName = "Authorization";
+        return "Basic " + java.util.Base64.getEncoder().encodeToString(usernameAndPassword.getBytes());
+    }
 }
