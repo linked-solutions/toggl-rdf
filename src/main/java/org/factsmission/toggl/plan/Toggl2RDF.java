@@ -199,7 +199,7 @@ public class Toggl2RDF {
                 + "PREFIX toggl: <http://vocab.linked.solutions/toggl#>"
                 + "PREFIX jarql: <http://jarql.com/>"
                 + "PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>"
-                + "PREFIX dct <http://purl.org/dc/terms/>"
+                + "PREFIX dct: <http://purl.org/dc/terms/>"
                 + "CONSTRUCT {"
                 + "?timeEntry a toggl:TimeEntry ;"
                 + "toggl:workspace ?workspace ;"
@@ -249,6 +249,6 @@ public class Toggl2RDF {
         graph.addAll(toggl2RDF.getTimeEntries(start, end));
         graph.addAll(toggl2RDF.getWorkspaces());
         graph.addAll(toggl2RDF.getElementsOfWorkspacesInGraph(graph));
-        Serializer.getInstance().serialize(System.out, graph, "text/turtle");
+        Serializer.getInstance().serialize(System.out, graph, "application/rdf+xml");
     }
 }
