@@ -23,8 +23,8 @@
  */
 package org.factsmission.toggl.plan;
 
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -44,14 +44,13 @@ import org.apache.clerezza.rdf.core.serializedform.UnsupportedFormatException;
 import org.apache.clerezza.rdf.ontologies.RDF;
 import org.apache.clerezza.rdf.utils.UnionGraph;
 import org.glassfish.jersey.client.ClientConfig;
+import org.wymiwyg.commons.util.arguments.ArgumentHandler;
 
 /**
  *
  * @author reto
  */
 public class Toggl2RDF {
-
-    final static DateTimeFormatter formatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
     
     final String authHeaderValue;
     final WebTarget apiRoot;
@@ -192,7 +191,7 @@ public class Toggl2RDF {
         return invoke(projects);
     }
     
-    private Graph getTimeEntries(final ZonedDateTime start, final ZonedDateTime end) throws UnsupportedFormatException {
+    private Graph getTimeEntries(final Instant start, final Instant end) throws UnsupportedFormatException {
         
         final WebTarget timeEntries = apiRoot.path("time_entries");
         timeEntries.register(new JarqlMBR(""
@@ -225,8 +224,8 @@ public class Toggl2RDF {
                 + "BIND(xsd:dateTime(?stop) AS ?stopTime)"
                 + "}"));
         final WebTarget timeEntriesInTimeRange = timeEntries
-                .queryParam("start_date", formatter.format(start))
-                .queryParam("end_date", formatter.format(end));
+                .queryParam("start_date", start.toString())
+                .queryParam("end_date", end.toString());
         return invoke(timeEntriesInTimeRange);
     }
 
@@ -242,13 +241,30 @@ public class Toggl2RDF {
     }
     
     public static void main(final String... args) {
-        final Toggl2RDF toggl2RDF = new Toggl2RDF(args[0]);
-        final ZonedDateTime end = ZonedDateTime.now();
-        final ZonedDateTime start = end.minusDays(1);
+        Arguments arguments = ArgumentHandler.readArguments(Arguments.class, args);
+        if (arguments != null) {
+            main(arguments);
+        }
+    }
+    
+    public static void main(Arguments arguments) {
+        final OffsetDateTime until;
+        if (arguments.until() != null) {
+            until = OffsetDateTime.parse(arguments.until());
+        } else {
+            until = OffsetDateTime.now();
+        }
+        final OffsetDateTime since;
+        if (arguments.since() != null) {
+            since = OffsetDateTime.parse(arguments.since());
+        } else {
+            since = until.minusDays(1);
+        }
+        final Toggl2RDF toggl2RDF = new Toggl2RDF(arguments.apiKeys());
         final Graph graph = new SimpleGraph();
-        graph.addAll(toggl2RDF.getTimeEntries(start, end));
+        graph.addAll(toggl2RDF.getTimeEntries(since.toInstant(), until.toInstant()));
         graph.addAll(toggl2RDF.getWorkspaces());
         graph.addAll(toggl2RDF.getElementsOfWorkspacesInGraph(graph));
-        Serializer.getInstance().serialize(System.out, graph, "application/rdf+xml");
+        Serializer.getInstance().serialize(System.out, graph, arguments.format());
     }
 }
