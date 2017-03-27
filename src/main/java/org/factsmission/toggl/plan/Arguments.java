@@ -57,6 +57,15 @@ public interface Arguments {
     public String until();
     
     @CommandLine (
+        longName ="requestInterval",
+        shortName = "I",
+        required = false,
+        defaultValue = "24",
+        description = "The duration of the interval of a single API call in hours, the period to dump is split into period of at most this length"
+    )
+    public int requestInterval();
+    
+    @CommandLine (
         longName ="format",
         shortName = "F", 
         required = false,

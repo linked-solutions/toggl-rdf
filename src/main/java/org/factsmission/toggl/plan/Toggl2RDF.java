@@ -23,6 +23,7 @@
  */
 package org.factsmission.toggl.plan;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Collection;
@@ -191,8 +192,20 @@ public class Toggl2RDF {
         return invoke(projects);
     }
     
-    private Graph getTimeEntries(final Instant start, final Instant end) throws UnsupportedFormatException {
-        
+    private Graph getTimeEntries(final Instant start, final Instant end, 
+            final Duration requestInterval) throws UnsupportedFormatException {
+        final Graph result = new SimpleGraph();
+        final Instant endOfInterval = start.plus(requestInterval);
+        if (endOfInterval.isAfter(end)) {
+            result.addAll(getTimeEntrieSingleRequests(start, end));
+        } else {
+            result.addAll(getTimeEntrieSingleRequests(start, endOfInterval));
+            result.addAll(getTimeEntries(endOfInterval, end, requestInterval));
+        }
+        return result;
+    }
+    
+    private Graph getTimeEntrieSingleRequests(final Instant start, final Instant end) throws UnsupportedFormatException {
         final WebTarget timeEntries = apiRoot.path("time_entries");
         timeEntries.register(new JarqlMBR(""
                 + "PREFIX toggl: <http://vocab.linked.solutions/toggl#>"
@@ -260,9 +273,10 @@ public class Toggl2RDF {
         } else {
             since = until.minusDays(1);
         }
+        final Duration requestInterval = Duration.ofHours(arguments.requestInterval());
         final Toggl2RDF toggl2RDF = new Toggl2RDF(arguments.apiKeys());
         final Graph graph = new SimpleGraph();
-        graph.addAll(toggl2RDF.getTimeEntries(since.toInstant(), until.toInstant()));
+        graph.addAll(toggl2RDF.getTimeEntries(since.toInstant(), until.toInstant(), requestInterval));
         graph.addAll(toggl2RDF.getWorkspaces());
         graph.addAll(toggl2RDF.getElementsOfWorkspacesInGraph(graph));
         Serializer.getInstance().serialize(System.out, graph, arguments.format());
