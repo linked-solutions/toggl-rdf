@@ -2,8 +2,8 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.factsmission</groupId>
-  <artifactId>toggl-plan</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <artifactId>toggl-rdf</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
   <packaging>jar</packaging>
   <licenses>
     <license>
@@ -38,9 +38,9 @@
       <version>1.0.0</version>
     </dependency>
     <dependency>
-      <groupId>io.synapta.jarql</groupId>
+      <groupId>solutions.linked</groupId>
       <artifactId>jarql</artifactId>
-      <version>1.0-SNAPSHOT</version>
+      <version>1.0.0</version>
     </dependency>
     <!-- <dependency>
       <groupId>javax.ws.rs</groupId>
