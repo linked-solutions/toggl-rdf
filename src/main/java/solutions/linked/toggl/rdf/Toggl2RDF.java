@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package org.factsmission.toggl.plan;
+package solutions.linked.toggl.rdf;
 
 import java.time.Duration;
 import java.time.Instant;

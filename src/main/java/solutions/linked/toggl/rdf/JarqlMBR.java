@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package org.factsmission.toggl.plan;
+package solutions.linked.toggl.rdf;
 
 import io.synapta.jarql.JarqlExecutor;
 import java.io.IOException;
