@@ -23,12 +23,12 @@
  */
 package solutions.linked.toggl.rdf;
 
-import java.util.Date;
 import org.wymiwyg.commons.util.arguments.CommandLine;
 
 /**
- *
- * @author user
+ * Interface for the Toggl2RDF arguments. This interface is annotated so that it 
+ * can be used to parse command line arguments with the WYMIWYG command line 
+ * utilities.
  */
 public interface Arguments {
     

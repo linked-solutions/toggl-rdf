@@ -48,8 +48,7 @@ import org.glassfish.jersey.client.ClientConfig;
 import org.wymiwyg.commons.util.arguments.ArgumentHandler;
 
 /**
- *
- * @author reto
+ * A utility to dump Toggl data as RDF.
  */
 public class Toggl2RDF {
     

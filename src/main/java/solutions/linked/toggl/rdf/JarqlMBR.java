@@ -34,11 +34,9 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.MessageBodyReader;
 import javax.ws.rs.ext.Provider;
 import org.apache.clerezza.commons.rdf.Graph;
-import org.apache.clerezza.commons.rdf.impl.utils.simple.SimpleGraph;
 
 /**
- *
- * @author user
+ * A JAX-RS MessageBodyReader that returns an RDF graph for the read JSON data.
  */
 @Provider
 class JarqlMBR implements MessageBodyReader<Graph>{
