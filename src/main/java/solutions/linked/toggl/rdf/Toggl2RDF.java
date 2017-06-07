@@ -186,7 +186,7 @@ public class Toggl2RDF {
                 + "?s a jarql:Root ;"
                 + "jarql:name ?name ;"
                 + "jarql:id ?id ."
-                + "BIND(IRI(CONCAT(\"https://www.toggl.com/api/v8/workspaces/\", ?id)) AS ?workspace)"
+                + "BIND(IRI(CONCAT(\"https://toggl.com/api/v8/workspaces/\", ?id)) AS ?workspace)"
                 + "}"));
         return invoke(projects);
     }
